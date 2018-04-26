@@ -127,7 +127,13 @@ for epoch in range(N_EPOCH):
         
 
 
+pl.plot(loss)
+pl.ylabel('loss')
+pl.show()
 
+pl.plot(accuracy)
+pl.ylabel('accuracy')
+pl.show()
 
 
 
