@@ -7,7 +7,7 @@ import matplotlib.pyplot as pl
 
 BATCH_SIZE=128
 BUFFER_SIZE=1000
-N_EPOCH=10
+N_EPOCH=100
 
 #load dataset
 from tensorflow.examples.tutorials.mnist import input_data
@@ -15,6 +15,8 @@ from tensorflow.examples.tutorials.mnist import input_data
 mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
 trX, trY, teX, teY = mnist.train.images, mnist.train.labels, mnist.test.images, mnist.test.labels
 
+N_BATCH_TRAIN = trY.shape[0] // BATCH_SIZE
+N_BATCH_TEST = teY.shape[0] // BATCH_SIZE
 
 #organize the data with a tf dataset
 
@@ -48,10 +50,11 @@ class Model:
         self.dense2=tf.layers.Dense(64,activation=tf.nn.relu)
         self.dense3=tf.layers.Dense(10,activation=tf.nn.relu)
         
-    def __cal__(self, x):
+    def __call__(self, x):
         y=self.dense1(x)
         y=self.dense2(y)
         y=self.dense3(y)
+        return(y)
         
 model=Model()
 
@@ -65,18 +68,34 @@ train_op = tf.train.GradientDescentOptimizer(0.05).minimize(cost) # construct op
 predict_op = tf.argmax(Y, 1) # at predict time, evaluate the argmax of the logistic regression
         
     
+test=tf.multiply(cost,cost)
+
 
 #define the session + initializer
 sess=tf.Session()
 init=tf.global_variables_initializer()
 sess.run(init)
 
-#keep track of the loss
+#keep track of the loss and accuracy
 loss=[]
+accuracy=[]
 
 #run optimization
 for epoch in range(N_EPOCH):
-    for batch in range()
+    for batch in range(N_BATCH_TRAIN):
+        _,tmpLoss=sess.run([train_op,cost])
+        loss+=[tmpLoss]
+        print('epoch ', epoch,' ; batch ', batch +1, ' / ', N_BATCH_TRAIN, '   error : ', tmpLoss)
+    
+    #evaluate on test set
+    testPredictions=sess.run(predict_op, feed_dict={X:teX})
+    
+    #measure accuracy
+    tmpAccuracy=np.mean( np.argmax(teY, axis=1) == sess.run(predict_op, feed_dict={X: teX}) )
+    accuracy+=[tmpAccuracy]
+    
+    print('end of epoch ', epoch, ' accuracy on test set : ', tmpAccuracy)
+        
 
 
 
