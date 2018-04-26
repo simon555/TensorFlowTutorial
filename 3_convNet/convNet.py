@@ -7,7 +7,7 @@ import matplotlib.pyplot as pl
 
 BATCH_SIZE=128
 BUFFER_SIZE=1000
-N_EPOCH=100
+N_EPOCH=10
 
 #load dataset
 from tensorflow.examples.tutorials.mnist import input_data
@@ -47,20 +47,40 @@ testIinputs = testIterator.get_next()
 #define inputs of the model
 X=trainInputs['image']
 
+
+layer=tf.layers.Conv2D(28,3,padding='same',activation=tf.nn.relu) 
+
 #define the model
 class Model:
     def __init__(self):
-        self.conv1=tf.layers.Conv2D(28,3,padding='same',activation=tf.nn.relu)   
-        self.conv2=tf.layers.Conv2D(14,3,padding='same',activation=tf.nn.relu)   
-        self.conv3=tf.layers.Conv2D(7,3,padding='same',activation=tf.nn.relu)
+        self.conv1=tf.layers.Conv2D(8,3,padding='same',activation=tf.nn.relu)   
+        self.conv2=tf.layers.Conv2D(16,3,padding='same',activation=tf.nn.relu)   
+        self.conv3=tf.layers.Conv2D(32,3,padding='same',activation=tf.nn.relu)
+        self.conv3=tf.layers.Conv2D(64,3,padding='same',activation=tf.nn.relu)
         
-        self.dense=tf.layers.Dense(10,activation=tf.nn.relu) 
+        self.pool = tf.layers.MaxPooling2D(2,2,'same')
+
+        
+        self.dense=tf.layers.Dense(10) 
+        
+    def getNumberFeatures(self, y):
+        output=1
+        for dim in y.shape[1:]:
+            output*=int(dim)
+        return(output)
         
     def __call__(self, x):
         y=self.conv1(x)
+        y=self.pool(y)
         y=self.conv2(y)
+        y=self.pool(y)
         y=self.conv3(y)
-        y=tf.reshape(y,[-1,7*7])
+        y=self.pool(y)
+        
+        features=self.getNumberFeatures(y)
+        
+        y=tf.reshape(y,[-1,features])
+        
         y=self.dense(y)
         
         return(y)
