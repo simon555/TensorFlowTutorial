@@ -87,12 +87,21 @@ class Model:
         
 model=Model()
 
+
+
+
+
+
+
 #define the output of the model
 Y=model(X)
 
 #define the loss function
 Y_label=trainInputs['label']
 cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=Y, labels=Y_label)) 
+tf.summary.scalar("cost", cost)
+
+
 train_op = tf.train.GradientDescentOptimizer(0.05).minimize(cost) # construct optimizer
 predict_op = tf.argmax(Y, 1) # at predict time, evaluate the argmax of the logistic regression
         
@@ -100,8 +109,21 @@ predict_op = tf.argmax(Y, 1) # at predict time, evaluate the argmax of the logis
 test=tf.multiply(cost,cost)
 
 
+
+# summary histogram
+tf.summary.histogram("conv_1_m", model.conv1.weights[0])
+tf.summary.histogram("dense_m", model.dense.weights[0])
+tf.summary.histogram("conv_1_b", model.conv1.weights[1])
+tf.summary.histogram("dense_b", model.dense.weights[1])
+
+
 #define the session + initializer
 sess=tf.Session()
+writer = tf.summary.FileWriter("./logs/nn_logs", sess.graph) # for 1.0
+merged = tf.summary.merge_all()
+
+
+
 init=tf.global_variables_initializer()
 sess.run(init)
 
@@ -124,8 +146,10 @@ for epoch in range(N_EPOCH):
     accuracy+=[tmpAccuracy]
     
     print('end of epoch ', epoch, ' accuracy on test set : ', tmpAccuracy)
-        
+    summary = sess.run(merged)
+    writer.add_summary(summary, epoch)  # Write summary
 
+writer.close()
 
 pl.plot(loss)
 pl.ylabel('loss')
@@ -146,4 +170,3 @@ pl.show()
 
 
 
-    

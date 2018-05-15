@@ -1,170 +1,70 @@
-# -*- coding: utf-8 -*-
+#!/usr/bin/env python
 
-import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as pl
-
-
-BATCH_SIZE=128
-BUFFER_SIZE=1000
-N_EPOCH=10
-
-#load dataset
 from tensorflow.examples.tutorials.mnist import input_data
+
+def init_weights(shape, name):
+    return tf.Variable(tf.random_normal(shape, stddev=0.01), name=name)
+
+# This network is the same as the previous one except with an extra hidden layer + dropout
+def model(X, w_h, w_h2, w_o, p_keep_input, p_keep_hidden):
+    # Add layer name scopes for better graph visualization
+    with tf.name_scope("layer1"):
+        X = tf.nn.dropout(X, p_keep_input)
+        h = tf.nn.relu(tf.matmul(X, w_h))
+    with tf.name_scope("layer2"):
+        h = tf.nn.dropout(h, p_keep_hidden)
+        h2 = tf.nn.relu(tf.matmul(h, w_h2))
+    with tf.name_scope("layer3"):
+        h2 = tf.nn.dropout(h2, p_keep_hidden)
+        return tf.matmul(h2, w_o)
 
 mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
 trX, trY, teX, teY = mnist.train.images, mnist.train.labels, mnist.test.images, mnist.test.labels
 
-trX=trX.reshape((-1,28,28,1))
-teX=teX.reshape((-1,28,28,1))
+X = tf.placeholder("float", [None, 784], name="X")
+Y = tf.placeholder("float", [None, 10], name="Y")
 
+w_h = init_weights([784, 625], "w_h")
+w_h2 = init_weights([625, 625], "w_h2")
+w_o = init_weights([625, 10], "w_o")
 
-N_BATCH_TRAIN = trY.shape[0] // BATCH_SIZE
-N_BATCH_TEST = teY.shape[0] // BATCH_SIZE
+# Add histogram summaries for weights
+tf.summary.histogram("w_h_summ", w_h)
+tf.summary.histogram("w_h2_summ", w_h2)
+tf.summary.histogram("w_o_summ", w_o)
 
-#organize the data with a tf dataset
+p_keep_input = tf.placeholder("float", name="p_keep_input")
+p_keep_hidden = tf.placeholder("float", name="p_keep_hidden")
+py_x = model(X, w_h, w_h2, w_o, p_keep_input, p_keep_hidden)
 
-#train
-trainDataset=tf.data.Dataset.from_tensor_slices({'image':trX, 'label':trY}).repeat()
-trainDataset=trainDataset.shuffle(BUFFER_SIZE)
-trainDataset=trainDataset.batch(BATCH_SIZE)
-trainIterator=trainDataset.make_one_shot_iterator()
-trainInputs = trainIterator.get_next()
+with tf.name_scope("cost"):
+    cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=py_x, labels=Y))
+    train_op = tf.train.RMSPropOptimizer(0.001, 0.9).minimize(cost)
+    # Add scalar summary for cost
+    tf.summary.scalar("cost", cost)
 
-#test
-testDataset=tf.data.Dataset.from_tensor_slices({'image':teX, 'label':teY}).repeat()
-testDataset=testDataset.shuffle(BUFFER_SIZE)
-testDataset=testDataset.batch(BATCH_SIZE)
-testIterator=testDataset.make_one_shot_iterator()
-testIinputs = testIterator.get_next()
+with tf.name_scope("accuracy"):
+    correct_pred = tf.equal(tf.argmax(Y, 1), tf.argmax(py_x, 1)) # Count correct predictions
+    acc_op = tf.reduce_mean(tf.cast(correct_pred, "float")) # Cast boolean to float to average
+    # Add scalar summary for accuracy
+    tf.summary.scalar("accuracy", acc_op)
 
-#checkup
-#print('train dataset')
-#with tf.Session() as sess: 
-#    print(sess.run(trainInputs)['image'][0].shape)
+with tf.Session() as sess:
+    # create a log writer. run 'tensorboard --logdir=./logs/nn_logs'
+    writer = tf.summary.FileWriter("./logs/nn_logs", sess.graph) # for 1.0
+    merged = tf.summary.merge_all()
 
+    # you need to initialize all variables
+    tf.global_variables_initializer().run()
 
-#define inputs of the model
-X=trainInputs['image']
-
-
-layer=tf.layers.Conv2D(28,3,padding='same',activation=tf.nn.relu) 
-
-#define the model
-class Model:
-    def __init__(self):
-        self.conv1=tf.layers.Conv2D(8,3,padding='same',activation=tf.nn.relu)   
-        self.conv2=tf.layers.Conv2D(16,3,padding='same',activation=tf.nn.relu)   
-        self.conv3=tf.layers.Conv2D(32,3,padding='same',activation=tf.nn.relu)
-        self.conv3=tf.layers.Conv2D(64,3,padding='same',activation=tf.nn.relu)
-        
-        self.pool = tf.layers.MaxPooling2D(2,2,'same')
-
-        
-        self.dense=tf.layers.Dense(10) 
-        
-    def getNumberFeatures(self, y):
-        output=1
-        for dim in y.shape[1:]:
-            output*=int(dim)
-        return(output)
-        
-    def __call__(self, x):
-        y=self.conv1(x)
-        y=self.pool(y)
-        y=self.conv2(y)
-        y=self.pool(y)
-        y=self.conv3(y)
-        y=self.pool(y)
-        
-        features=self.getNumberFeatures(y)
-        
-        y=tf.reshape(y,[-1,features])
-        
-        y=self.dense(y)
-        
-        return(y)
-        
-model=Model()
-
-
-
-
-
-
-
-#define the output of the model
-Y=model(X)
-
-#define the loss function
-Y_label=trainInputs['label']
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(logits=Y, labels=Y_label)) 
-tf.summary.scalar("cost", cost)
-
-
-train_op = tf.train.GradientDescentOptimizer(0.05).minimize(cost) # construct optimizer
-predict_op = tf.argmax(Y, 1) # at predict time, evaluate the argmax of the logistic regression
-        
-    
-test=tf.multiply(cost,cost)
-
-
-#define the session + initializer
-sess=tf.Session()
-# summary histogram
-tf.summary.histogram("conv_1_m", model.conv1.weights[0])
-tf.summary.histogram("dense_m", model.dense.weights[0])
-tf.summary.histogram("conv_1_b", model.conv1.weights[1])
-tf.summary.histogram("dense_b", model.dense.weights[1])
-
-writer = tf.summary.FileWriter("./logs/nn_logs", sess.graph) # for 1.0
-merged = tf.summary.merge_all()
-
-
-
-init=tf.global_variables_initializer()
-sess.run(init)
-
-#keep track of the loss and accuracy
-loss=[]
-accuracy=[]
-
-#run optimization
-for epoch in range(N_EPOCH):
-    for batch in range(N_BATCH_TRAIN):
-        _,tmpLoss=sess.run([train_op,cost])
-        loss+=[tmpLoss]
-        print('epoch ', epoch,' ; batch ', batch +1, ' / ', N_BATCH_TRAIN, '   error : ', tmpLoss)
-    
-    #evaluate on test set
-    testPredictions=sess.run(predict_op, feed_dict={X:teX})
-    
-    #measure accuracy
-    tmpAccuracy=np.mean( np.argmax(teY, axis=1) == sess.run(predict_op, feed_dict={X: teX}) )
-    accuracy+=[tmpAccuracy]
-    
-    print('end of epoch ', epoch, ' accuracy on test set : ', tmpAccuracy)
-    summary = sess.run(merged)
-    writer.add_summary(summary, epoch)  # Write summary
-
-writer.close()
-
-pl.plot(loss)
-pl.ylabel('loss')
-pl.show()
-
-pl.plot(accuracy)
-pl.ylabel('accuracy')
-pl.show()
-
-
-
-    
-    
-
-
-
-
-
-
+    for i in range(100):
+        for start, end in zip(range(0, len(trX), 128), range(128, len(trX)+1, 128)):
+            sess.run(train_op, feed_dict={X: trX[start:end], Y: trY[start:end],
+                                          p_keep_input: 0.8, p_keep_hidden: 0.5})
+        summary, acc = sess.run([merged, acc_op], feed_dict={X: teX, Y: teY,
+                                          p_keep_input: 1.0, p_keep_hidden: 1.0})
+        writer.add_summary(summary, i)  # Write summary
+        print(i, acc)                   # Report the accuracy
+    writer.close()# -*- coding: utf-8 -*-
 
